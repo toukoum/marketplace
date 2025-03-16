@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-
+import { StarIcon } from '@heroicons/react/24/solid'; // Need to add this dependency
 import { GridTileImage } from 'components/grid/tile';
 import Footer from 'components/layout/footer';
 import { Gallery } from 'components/product/gallery';
@@ -16,16 +16,16 @@ export async function generateMetadata(props: {
   params: Promise<{ handle: string }>;
 }): Promise<Metadata> {
   const params = await props.params;
-  const product = await getProduct(params.handle);
+  const tool = await getProduct(params.handle);
 
-  if (!product) return notFound();
+  if (!tool) return notFound();
 
-  const { url, width, height, altText: alt } = product.featuredImage || {};
-  const indexable = !product.tags.includes(HIDDEN_PRODUCT_TAG);
+  const { url, width, height, altText: alt } = tool.featuredImage || {};
+  const indexable = !tool.tags.includes(HIDDEN_PRODUCT_TAG);
 
   return {
-    title: product.seo.title || product.title,
-    description: product.seo.description || product.description,
+    title: `${tool.title} by ${tool.creator || 'Unknown'}`,
+    description: tool.description,
     robots: {
       index: indexable,
       follow: indexable,
@@ -36,39 +36,45 @@ export async function generateMetadata(props: {
     },
     openGraph: url
       ? {
-          images: [
-            {
-              url,
-              width,
-              height,
-              alt
-            }
-          ]
-        }
+        images: [
+          {
+            url,
+            width,
+            height,
+            alt
+          }
+        ]
+      }
       : null
   };
 }
 
-export default async function ProductPage(props: { params: Promise<{ handle: string }> }) {
+export default async function ToolPage(props: { params: Promise<{ handle: string }> }) {
   const params = await props.params;
-  const product = await getProduct(params.handle);
+  const tool = await getProduct(params.handle);
 
-  if (!product) return notFound();
+  if (!tool) return notFound();
 
-  const productJsonLd = {
+  const toolJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: product.title,
-    description: product.description,
-    image: product.featuredImage.url,
+    '@type': 'SoftwareApplication',
+    name: tool.title,
+    description: tool.description,
+    image: tool.featuredImage.url,
+    author: {
+      '@type': 'Person',
+      name: tool.creator || 'Unknown Creator'
+    },
+    applicationCategory: 'AIAgent',
     offers: {
-      '@type': 'AggregateOffer',
-      availability: product.availableForSale
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
-      priceCurrency: product.priceRange.minVariantPrice.currencyCode,
-      highPrice: product.priceRange.maxVariantPrice.amount,
-      lowPrice: product.priceRange.minVariantPrice.amount
+      '@type': 'Offer',
+      price: tool.priceRange.minVariantPrice.amount,
+      priceCurrency: tool.priceRange.minVariantPrice.currencyCode
+    },
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: tool.rating || '0',
+      reviewCount: tool.reviewCount || '0'
     }
   };
 
@@ -77,7 +83,7 @@ export default async function ProductPage(props: { params: Promise<{ handle: str
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(productJsonLd)
+          __html: JSON.stringify(toolJsonLd)
         }}
       />
       <div className="mx-auto max-w-(--breakpoint-2xl) px-4">
@@ -89,7 +95,7 @@ export default async function ProductPage(props: { params: Promise<{ handle: str
               }
             >
               <Gallery
-                images={product.images.slice(0, 5).map((image: Image) => ({
+                images={tool.images.slice(0, 5).map((image: Image) => ({
                   src: image.url,
                   altText: image.altText
                 }))}
@@ -97,46 +103,47 @@ export default async function ProductPage(props: { params: Promise<{ handle: str
             </Suspense>
           </div>
 
+
           <div className="basis-full lg:basis-2/6">
             <Suspense fallback={null}>
-              <ProductDescription product={product} />
+              <ProductDescription product={tool} />
             </Suspense>
           </div>
         </div>
-        <RelatedProducts id={product.id} />
+        <SimilarTools id={tool.id} />
       </div>
       <Footer />
     </ProductProvider>
   );
 }
 
-async function RelatedProducts({ id }: { id: string }) {
-  const relatedProducts = await getProductRecommendations(id);
+async function SimilarTools({ id }: { id: string }) {
+  const similarTools = await getProductRecommendations(id);
 
-  if (!relatedProducts.length) return null;
+  if (!similarTools.length) return null;
 
   return (
     <div className="py-8">
-      <h2 className="mb-4 text-2xl font-bold">Related Products</h2>
+      <h2 className="mb-4 text-2xl font-bold">Similar Tools</h2>
       <ul className="flex w-full gap-4 overflow-x-auto pt-1">
-        {relatedProducts.map((product) => (
+        {similarTools.map((tool) => (
           <li
-            key={product.handle}
+            key={tool.handle}
             className="aspect-square w-full flex-none min-[475px]:w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5"
           >
             <Link
               className="relative h-full w-full"
-              href={`/product/${product.handle}`}
+              href={`/product/${tool.handle}`}
               prefetch={true}
             >
               <GridTileImage
-                alt={product.title}
+                alt={tool.title}
                 label={{
-                  title: product.title,
-                  amount: product.priceRange.maxVariantPrice.amount,
-                  currencyCode: product.priceRange.maxVariantPrice.currencyCode
+                  title: tool.title,
+                  amount: tool.priceRange.maxVariantPrice.amount,
+                  currencyCode: tool.priceRange.maxVariantPrice.currencyCode
                 }}
-                src={product.featuredImage?.url}
+                src={tool.featuredImage?.url}
                 fill
                 sizes="(min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, (min-width: 475px) 50vw, 100vw"
               />
